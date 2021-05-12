@@ -24,11 +24,11 @@ Optionally, CUDA can be installed in order to hasten training. This will provide
 
 There are 4 different iterations of Tmpnet inside the `models` folder.
 
-1. `tmpv1.py`: First iteration of template matching. Using the templates as a pre-processing layer on the observation RGB space prior to passing into convolutional policy network. Tested with both fixed templates and trainable templates. Both achieved underwhelming performance.
+1. `tmpv1.py`: First iteration of template matching. Used the templates as a pre-processing layer on the observation RGB space prior to passing into convolutional policy network. Tested with both fixed templates and trainable templates. Both achieved underwhelming performance.
 
-2. `tmpv2.py`: Second iteration of template matching. Using the templates as a pre-processing layer on the observation RGB space prior to passing into convolutional policy network. However, the input to the convolutional policy network was a concatenation of the output of the template matching and the original RGB space. Performance was good but analysis showed the network was relying entirely on the original RGB space and the template matching channels were disregarded.
+2. `tmpv2.py`: Second iteration of template matching. Used the templates as a pre-processing layer on the observation RGB space prior to passing into convolutional policy network. However, the input to the convolutional policy network was a concatenation of the output of the template matching and the original RGB space. Performance was good but analysis showed the network was relying entirely on the original RGB space and the template matching channels were disregarded.
 
-3. `tmpv3.py`: Third iteration of template matching. Using the templates as a pre-processing layer, fed through a trainable feed forward network prior to being convolved over the observation RGB space. Achieved underwhelming performance.
+3. `tmpv3.py`: Third iteration of template matching. Used the templates as a pre-processing layer, where the original templates were fed through a trainable feed forward network. The output is used as the weights to be convolved over the observation RGB space. Finally, the output of the second process is fed to a specified convolutional policy network. Achieved underwhelming performance.
 
 4. `tmp_init.py`: Orthonormal template initialization of convolutional kernels.
 
