@@ -1,0 +1,9 @@
+numpy
+gym
+procgen
+torch
+torchvision
+matplotlib
+tqdm
+pandas
+tensorflow
