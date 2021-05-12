@@ -1,0 +1,5 @@
+*.ipynb_check*
+*pycache*
+*.pyc
+*.pt
+*.zip
