@@ -13,8 +13,7 @@ from util import logger
 
 import tensorflow as tf
 
-from agents.impala import ImpalaCNN
-from agetns.tmp_init import TMPNet_template_init
+from models.tmp_init import TMPNet_template_init
 from agents.ppo import PPO
 
 import datetime
@@ -36,7 +35,7 @@ def parse_args():
     parser.add_argument('--start-level', type=int, default=1000)
     parser.add_argument('--num-threads', type=int, default=4)
     parser.add_argument('--exp-name', type=str, default='trial01')
-    parser.add_argument('--log-dir', type=str, default='./log_ADAM')
+    parser.add_argument('--log-dir', type=str, default='./logs_tmp')
     parser.add_argument('--method-label', type=str, default='vanilla')
 
 
@@ -83,8 +82,6 @@ def safe_mean(xs):
 
 
 def rollout_one_step(agent, env, obs, steps, env_max_steps=1000):
-
-    # print("rollout_obs:", obs.shape)
 
     # Step once.
     action = agent.batch_act(obs)
@@ -209,6 +206,7 @@ def run():
         proc_conv_ksize=configs.proc_size,
         proc_conv_stride=configs.proc_strd,
         log_dir=log_dir,
+        gpu=configs.gpu
     )
 
     # Create agent and train.

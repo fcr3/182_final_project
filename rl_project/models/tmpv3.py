@@ -5,7 +5,7 @@ from tqdm import tqdm
 import numpy as np
 import cv2
 import os
-from impala import ResidualBlock, ConvSequence, ImpalaCNN
+from .impala import ResidualBlock, ConvSequence, ImpalaCNN
 
 class TMPNet3(nn.Module):
 
@@ -14,18 +14,30 @@ class TMPNet3(nn.Module):
                  proc_conv_ksize=3, proc_conv_stride=2,
                  log_dir=None, init_style=None, impala_layer_init=None,
                  init_all_input_channels=None,
-                 d=torch.device('cuda'), grad_on=False):
+                 gpu=None, grad_on=False):
         super(TMPNet3, self).__init__()
         h, w, c = obs_space.shape
         shape = (c, h, w)
 
+        if gpu is not None and gpu >= 0 and torch.cuda.is_available():
+            # assert torch.cuda.is_available()
+            print('Using gpu...')
+            d = torch.device("cuda:{}".format(gpu))
+        else:
+            if torch.cuda.is_available():
+                print('Considering using GPU b/c it is availabe!')
+            print('Using cpu...')
+            d = torch.device("cpu")
+
         # Loading templates
         templates = {}
-        image_list = os.listdir('images')
+        image_list = os.listdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'images'))
         image_list = tqdm([i for i in image_list if '.png' in i])
         for i, f in enumerate(image_list):
             if '.png' not in f:
                 continue
+
+            f = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'images', f)
 
             img = cv2.imread(os.path.join("images", f))
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)

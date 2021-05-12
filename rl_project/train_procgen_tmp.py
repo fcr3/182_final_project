@@ -13,11 +13,10 @@ from util import logger
 
 import tensorflow as tf
 
-from models.impala import ImpalaCNN
 from models.tmp_init import TMPNet_template_init
-from models.tmp_v1 import TMPNet1
-from models.tmp_v2 import TMPNet2
-from models.tmp_v3 import TMPNet3
+from models.tmpv1 import TMPNet1
+from models.tmpv2 import TMPNet2
+from models.tmpv3 import TMPNet3
 from agents.ppo import PPO
 
 import datetime
@@ -96,8 +95,6 @@ def safe_mean(xs):
 
 
 def rollout_one_step(agent, env, obs, steps, env_max_steps=1000):
-
-    # print("rollout_obs:", obs.shape)
 
     # Step once.
     action = agent.batch_act(obs)
@@ -282,13 +279,14 @@ def run():
         conv_out_features=configs.conv_out_feats,
         proc_conv_ksize=configs.proc_size,
         proc_conv_stride=configs.proc_strd,
-        pooing=configs.pooing,
+        pooling=configs.pooling,
         target_width=configs.target_width,
         impala_layer_init=configs.impala_layer_init,
         init_style=configs.init_style,
         log_dir=log_dir,
         init_all_input_channels=configs.init_all_input_channels,
-        grad_on=configs.grad
+        grad_on=configs.grad,
+        gpu=configs.gpu
     )
 
     # Create agent and train.

@@ -11,8 +11,8 @@ from vec_env import VecMonitor
 from vec_env import VecNormalize
 from util import logger
 
-from policies import ImpalaCNN
-from ppo import PPO
+from models.impala import ImpalaCNN
+from agents.ppo import PPO
 
 
 def parse_args():
@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument('--start-level', type=int, default=0)
     parser.add_argument('--num-threads', type=int, default=4)
     parser.add_argument('--exp-name', type=str, default='trial01')
-    parser.add_argument('--log-dir', type=str, default='./log')
+    parser.add_argument('--log-dir', type=str, default='./logs_tmp')
     parser.add_argument('--model-file', type=str, default=None)
     parser.add_argument('--method-label', type=str, default='vanilla')
 

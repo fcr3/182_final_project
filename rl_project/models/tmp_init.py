@@ -5,30 +5,42 @@ from tqdm import tqdm
 import numpy as np
 import cv2
 import os
-from impala import ResidualBlock, ConvSequence, ImpalaCNN
+from .impala import ResidualBlock, ConvSequence, ImpalaCNN
 
 class TMPNet_template_init(nn.Module):
 
     def __init__(self, obs_space, num_outputs, target_width=7,
                  pooling=2, out_features = 256, conv_out_features=32,
                  proc_conv_ksize=3, proc_conv_stride=2,
-                 d=torch.device('cuda'), impala_layer_init=-1, 
+                 gpu=None, impala_layer_init=-1, 
                  init_style='resize', log_dir='./log_ADAM',
                  init_all_input_channels=False, grad_on=None):
         super(TMPNet_template_init, self).__init__()
 
         assert(init_style in ['resize', 'fragment'])
 
+        if gpu is not None and gpu >= 0 and torch.cuda.is_available():
+            # assert torch.cuda.is_available()
+            print('Using gpu...')
+            d = torch.device("cuda:{}".format(gpu))
+        else:
+            if torch.cuda.is_available():
+                print('Considering using GPU b/c it is availabe!')
+            print('Using cpu...')
+            d = torch.device("cpu")
+
         h, w, c = obs_space.shape
         shape = (c, h, w)
 
         # Loading templates
         templates = {}
-        image_list = os.listdir('images')
+        image_list = os.listdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'images'))
         image_list = tqdm([i for i in image_list if '.png' in i])
         for i, f in enumerate(image_list):
             if '.png' not in f:
                 continue
+            
+            f = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'images', f)
 
             templates[f] = {}
             img = cv2.imread(os.path.join("images", f))
