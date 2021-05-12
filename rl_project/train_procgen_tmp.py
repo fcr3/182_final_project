@@ -11,8 +11,16 @@ from vec_env import VecMonitor
 from vec_env import VecNormalize
 from util import logger
 
-from policies import ImpalaCNN, TMPNet, TMPNet2, TMPNet3
-from ppo import PPO
+import tensorflow as tf
+
+from models.impala import ImpalaCNN
+from models.tmp_init import TMPNet_template_init
+from models.tmp_v1 import TMPNet1
+from models.tmp_v2 import TMPNet2
+from models.tmp_v3 import TMPNet3
+from agents.ppo import PPO
+
+import datetime
 
 
 def parse_args():
@@ -26,12 +34,18 @@ def parse_args():
     parser.add_argument('--env-name', type=str, default='fruitbot')
     parser.add_argument('--num-envs', type=int, default=64)
     parser.add_argument('--num-levels', type=int, default=0)
-    parser.add_argument('--start-level', type=int, default=0)
+    parser.add_argument('--start-level', type=int, default=1000)
     parser.add_argument('--num-threads', type=int, default=4)
     parser.add_argument('--exp-name', type=str, default='trial01')
-    parser.add_argument('--log-dir', type=str, default='./log')
-    parser.add_argument('--model-file', type=str, default=None)
+    parser.add_argument('--log-dir', type=str, default='./logs_tmp')
     parser.add_argument('--method-label', type=str, default='vanilla')
+    parser.add_argument("--kernel-norm-diff", default=False, action="store_true")
+    parser.add_argument("--kernel-norm", default=False, action="store_true")
+    parser.add_argument("--impala-layer-init", type=int, default=0)
+    parser.add_argument("--init-style", type=str, default='resize')
+    parser.add_argument('--init-all-input_channels', default=False, 
+                        action="store_true")
+
 
     # PPO parameters.
     parser.add_argument('--gpu', type=int, default=0)
@@ -49,25 +63,28 @@ def parse_args():
     parser.add_argument('--save-interval', type=int, default=100)
 
     # TMP parameters.
-    parser.add_argument('--TMPv', type=str, default='v1', 
-                        choices=['v1', 'v2', 'v3'])
+    parser.add_argument('--TMPv', type=str, default='init', 
+                        choices=['v1', 'v2', 'v3', 'init'])
     parser.add_argument('--grad', type=lambda x : bool(x), default=False)
-    parser.add_argument('--proc_size', type=int, default=3)
-    parser.add_argument('--proc_strd', type=int, default=2)
-    parser.add_argument('--nobg', type=lambda x : x.lower() == 'false', default=False)
-
+    parser.add_argument('--proc-size', type=int, default=3)
+    parser.add_argument('--proc-strd', type=int, default=2)
+    parser.add_argument('--model-file', type=str, default=None)
+    parser.add_argument('--target-width', type=int, default=7)
+    parser.add_argument('--pooling', type=int, default=2)
+    parser.add_argument('--out-feats', type=int, default=256)
+    parser.add_argument('--conv-out-feats', type=int, default=32)
+    
     return parser.parse_args()
 
 
-def create_venv(config, is_valid=False):
+def create_venv(config, valid=False):
     venv = ProcgenEnv(
         num_envs=config.num_envs,
         env_name=config.env_name,
-        num_levels=0 if is_valid else config.num_levels,
-        start_level=0 if is_valid else config.start_level,
+        num_levels=0 if valid else config.num_levels,
+        start_level=0 if valid else config.start_level,
         distribution_mode=config.distribution_mode,
         num_threads=config.num_threads,
-        use_backgrounds=not config.nobg
     )
     venv = VecExtractDictObs(venv, "rgb")
     venv = VecMonitor(venv=venv, filename=None, keep_buf=100)
@@ -107,7 +124,16 @@ def rollout_one_step(agent, env, obs, steps, env_max_steps=1000):
     return new_obs, steps, epinfo
 
 
-def train(config, agent, train_env, test_env, model_dir):
+def train(config, agent, train_env, test_env, model_dir, 
+          policy, log_kernel_norm_diff, log_kernel_norm, 
+          init_all_input_channels):
+
+  
+    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    train_log_dir = model_dir + '/' + current_time + '/train'
+    test_log_dir = model_dir + '/' + current_time + '/test'
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
     if config.model_file is not None:
         agent.model.load_from_file(config.model_file)
@@ -143,7 +169,7 @@ def train(config, agent, train_env, test_env, model_dir):
             agent=agent,
             env=train_env,
             obs=train_obs,
-            steps=train_steps,
+            steps=train_steps
         )
         train_epinfo_buf.extend(train_epinfo)
 
@@ -154,7 +180,7 @@ def train(config, agent, train_env, test_env, model_dir):
                 agent=agent,
                 env=test_env,
                 obs=test_obs,
-                steps=test_steps,
+                steps=test_steps
             )
             test_epinfo_buf.extend(test_epinfo)
 
@@ -165,21 +191,44 @@ def train(config, agent, train_env, test_env, model_dir):
             tnow = time.perf_counter()
             fps = int(nbatch / (tnow - tstart))
 
+            with train_summary_writer.as_default():
+              tf.summary.scalar('eprewmean', safe_mean([info['r'] for info in train_epinfo_buf]), step=step_cnt+1)
+              tf.summary.scalar('eplenmean', safe_mean([info['l'] for info in train_epinfo_buf]), step=step_cnt+1)
+              tf.summary.scalar('total_steps', (step_cnt + 1) * config.num_envs, step=step_cnt+1)
+              tf.summary.scalar('fps', fps, step=step_cnt+1)
+              tf.summary.scalar('num_ppo_updates', num_ppo_updates, step=step_cnt+1)
+              train_stats = agent.get_statistics()
+              for stats in train_stats:
+                logger.logkv(stats[0], stats[1])
+                tf.summary.scalar(stats[0], stats[1], step=step_cnt+1)
+
+            with test_summary_writer.as_default():
+              tf.summary.scalar('eval_eprewmean', safe_mean([info['r'] for info in test_epinfo_buf]), step=step_cnt+1)
+              tf.summary.scalar('eval_eplenmean', safe_mean([info['l'] for info in test_epinfo_buf]), step=step_cnt+1)
+            
             logger.logkv('steps', step_cnt + 1)
             logger.logkv('total_steps', (step_cnt + 1) * config.num_envs)
             logger.logkv('fps', fps)
             logger.logkv('num_ppo_update', num_ppo_updates)
             logger.logkv('eprewmean',
-                         safe_mean([info['r'] for info in train_epinfo_buf]))
+                        safe_mean([info['r'] for info in train_epinfo_buf]))
             logger.logkv('eplenmean',
-                         safe_mean([info['l'] for info in train_epinfo_buf]))
+                        safe_mean([info['l'] for info in train_epinfo_buf]))
             logger.logkv('eval_eprewmean',
-                         safe_mean([info['r'] for info in test_epinfo_buf]))
+                        safe_mean([info['r'] for info in test_epinfo_buf]))
             logger.logkv('eval_eplenmean',
-                         safe_mean([info['l'] for info in test_epinfo_buf]))
-            train_stats = agent.get_statistics()
-            for stats in train_stats:
-                logger.logkv(stats[0], stats[1])
+                        safe_mean([info['l'] for info in test_epinfo_buf]))
+
+            if log_kernel_norm_diff:
+              norm_diffs = policy.kernel_diff_norm()
+              for k, v in norm_diffs.items():
+                logger.logkv('avg_frob_kernel_diff_layer' + str(k), v)
+
+            if log_kernel_norm:
+              norms = policy.kernel_norm()
+              for k, v in norms.items():
+                logger.logkv('avg_frob_kernel_layer' + str(k), v)
+            
             logger.dumpkvs()
 
             if num_ppo_updates % config.save_interval == 0:
@@ -208,26 +257,37 @@ def run():
         configs.method_label,
         configs.exp_name,
     )
+
+    print('configuring logger at dir', log_dir)
+
     logger.configure(dir=log_dir, format_strs=['csv', 'stdout'])
 
     # Create venvs.
-    train_venv = create_venv(configs, is_valid=False)
-    valid_venv = create_venv(configs, is_valid=True)
+    train_venv = create_venv(configs, valid=False)
+    valid_venv = create_venv(configs, valid=True)
 
     # Create policy.
-    tmpnet = TMPNet
+    tmpnet = TMPNet_template_init
+    if configs.TMPv == 'v1':
+        tmpnet = TMPNet1
     if configs.TMPv == 'v2':
         tmpnet = TMPNet2
     if configs.TMPv == 'v3':
         tmpnet = TMPNet3
 
-    print("[TMP] Grad On?", configs.grad)
-
     policy = tmpnet(
         obs_space=train_venv.observation_space,
         num_outputs=train_venv.action_space.n,
+        out_features=configs.out_feats,
+        conv_out_features=configs.conv_out_feats,
         proc_conv_ksize=configs.proc_size,
         proc_conv_stride=configs.proc_strd,
+        pooing=configs.pooing,
+        target_width=configs.target_width,
+        impala_layer_init=configs.impala_layer_init,
+        init_style=configs.init_style,
+        log_dir=log_dir,
+        init_all_input_channels=configs.init_all_input_channels,
         grad_on=configs.grad
     )
 
@@ -248,7 +308,10 @@ def run():
         clip_eps_vf=configs.clip_range,
         max_grad_norm=configs.max_grad_norm,
     )
-    train(configs, ppo_agent, train_venv, valid_venv, log_dir)
+    train(configs, ppo_agent, train_venv, valid_venv, log_dir, policy, 
+          configs.kernel_norm_diff if configs.TMPv == 'init' else False, 
+          configs.kernel_norm if configs.TMPv == 'init' else False, 
+          configs.init_all_input_channels if configs.TMPv == 'init' else False)
 
 
 if __name__ == '__main__':

@@ -24,4 +24,19 @@ Our project tested a number of different ways to integrate Template Matching int
 
 ### Running the TMPNet Demos
 
+Assuming you are in the `rl_project` directory, here is an example command that you can run to train and eval the model along the way:
 
+```
+(final) $ python train_procgen_tmp.py \
+        > --env-name fruitbot \
+        > --distribution-mode easy \
+        > --TMPv {choose: v1, v2, v3, init} \
+        > --method-label {make: a helpful folder name} \
+        > --exp-name {make: a helpful folder name}
+        > --num-levels {enter:int} \
+        > --start-level {enter: int} \
+        > --num-envs {enter: int} \
+        > --max-steps 5_000_000
+```
+
+If you don't specify a specific `--log-dir` in the terminal, then outputs will default to `logs_tmp/fruitbot/nlev_{num-levels}_easy/{method-label}/{exp-name}`. Furthermore, a folder titled with the datetime within the output folder will hold two folders: `train` and `test`. These folders will hold tf.events corresponding to their specific task (i.e. `train` will have a tf.event holding training statistics).

@@ -14,7 +14,7 @@ class TMPNet_template_init(nn.Module):
                  proc_conv_ksize=3, proc_conv_stride=2,
                  d=torch.device('cuda'), impala_layer_init=-1, 
                  init_style='resize', log_dir='./log_ADAM',
-                 init_all_input_channels=False):
+                 init_all_input_channels=False, grad_on=None):
         super(TMPNet_template_init, self).__init__()
 
         assert(init_style in ['resize', 'fragment'])
