@@ -13,8 +13,9 @@ from util import logger
 
 import tensorflow as tf
 
-from policies_ADAM import ImpalaCNN, TMPNet_template_init
-from ppo import PPO
+from agents.impala import ImpalaCNN
+from agetns.tmp_init import TMPNet_template_init
+from agents.ppo import PPO
 
 import datetime
 
