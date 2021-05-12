@@ -1,4 +1,6 @@
-# CS 182 Final Project
+# Increasing Training Efficiency of Convolutional Neural Policy Networks for Deep Reinforcement Learning
+
+## CS182 Final Project
 
 This repository serves as the codebase for our CS 182 Final Project.
 
