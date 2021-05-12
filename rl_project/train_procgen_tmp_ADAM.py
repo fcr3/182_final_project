@@ -13,7 +13,11 @@ from util import logger
 
 import tensorflow as tf
 
-from policies_ADAM import ImpalaCNN, TMPNet_template_init
+from models.impala import ImpalaCNN
+from models.tmp_init import TMPNet_template_init
+from models.tmp_v1 import TMPNet1
+from models.tmp_v2 import TMPNet2
+from models.tmp_v3 import TMPNet3
 from ppo import PPO
 
 import datetime
@@ -35,11 +39,12 @@ def parse_args():
     parser.add_argument('--exp-name', type=str, default='trial01')
     parser.add_argument('--log-dir', type=str, default='./log_ADAM')
     parser.add_argument('--method-label', type=str, default='vanilla')
-    parser.add_argument("--kernel_norm_diff", default=False, action="store_true")
-    parser.add_argument("--kernel_norm", default=False, action="store_true")
-    parser.add_argument("--impala_layer_init", type=int, default=0)
-    parser.add_argument("--init_style", type=str, default='resize')
-    parser.add_argument('--init_all_input_channels', default=False, action="store_true")
+    parser.add_argument("--kernel-norm-diff", default=False, action="store_true")
+    parser.add_argument("--kernel-norm", default=False, action="store_true")
+    parser.add_argument("--impala-layer-init", type=int, default=0)
+    parser.add_argument("--init-style", type=str, default='resize')
+    parser.add_argument('--init-all-input_channels', default=False, 
+                        action="store_true")
 
 
     # PPO parameters.
@@ -58,9 +63,16 @@ def parse_args():
     parser.add_argument('--save-interval', type=int, default=100)
 
     # TMP parameters.
-    parser.add_argument('--proc_size', type=int, default=3)
-    parser.add_argument('--proc_strd', type=int, default=2)
+    parser.add_argument('--TMPv', type=str, default='init', 
+                        choices=['v1', 'v2', 'v3', 'init'])
+    parser.add_argument('--grad', type=lambda x : bool(x), default=False)
+    parser.add_argument('--proc-size', type=int, default=3)
+    parser.add_argument('--proc-strd', type=int, default=2)
     parser.add_argument('--model-file', type=str, default=None)
+    parser.add_argument('--target-width', type=int, default=7)
+    parser.add_argument('--pooling', type=int, default=2)
+    parser.add_argument('--out-feats', type=int, default=256)
+    parser.add_argument('--conv-out-feats', type=int, default=32)
     
     return parser.parse_args()
 
@@ -254,12 +266,22 @@ def run():
 
     # Create policy.
     tmpnet = TMPNet_template_init
+    if configs.TMPv == 'v1':
+        tmpnet = TMPNet1
+    if configs.TMPv == 'v2':
+        tmpnet = TMPNet2
+    if configs.TMPv == 'v3':
+        tmpnet = TMPNet3
 
     policy = tmpnet(
         obs_space=train_venv.observation_space,
         num_outputs=train_venv.action_space.n,
+        out_features=configs.out_feats,
+        conv_out_features=configs.conv_out_feats,
         proc_conv_ksize=configs.proc_size,
         proc_conv_stride=configs.proc_strd,
+        pooing=configs.pooing,
+        target_width=configs.target_width,
         impala_layer_init=configs.impala_layer_init,
         init_style=configs.init_style,
         log_dir=log_dir,

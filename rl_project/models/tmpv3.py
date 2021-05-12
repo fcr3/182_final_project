@@ -12,6 +12,8 @@ class TMPNet3(nn.Module):
     def __init__(self, obs_space, num_outputs, target_width=7,
                  pooling=2, out_features = 256, conv_out_features=32,
                  proc_conv_ksize=3, proc_conv_stride=2,
+                 log_dir=None, init_style=None, impala_layer_init=None,
+                 init_all_input_channels=None,
                  d=torch.device('cuda'), grad_on=False):
         super(TMPNet3, self).__init__()
         h, w, c = obs_space.shape

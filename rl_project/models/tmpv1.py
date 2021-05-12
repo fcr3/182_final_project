@@ -13,6 +13,7 @@ class TMPNet1(nn.Module):
                  pooling=2, out_features = 256, conv_out_features=32,
                  proc_conv_ksize=None, proc_conv_stride=None,
                  impala_layer_init=None, init_style=None,
+                 init_all_input_channels=None,
                  log_dir=None, d=torch.device('cuda'), grad_on=False,
                  impala_k_size=3, scale=1.0):
         super(TMPNet, self).__init__()
