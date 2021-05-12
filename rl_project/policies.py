@@ -272,6 +272,7 @@ class ImpalaCNN(nn.Module):
     def load_from_file(self, model_path):
         self.load_state_dict(torch.load(model_path))
 
+
 class TMPNet(nn.Module):
 
     def __init__(self, obs_space, num_outputs, target_width=7,
@@ -374,30 +375,6 @@ class TMPNet(nn.Module):
           no_scale=True
         )
 
-        # Mini-Conv for Additional Processing
-        # self.conv = nn.Conv2d(in_channels=len(templates),
-        #                       out_channels=conv_out_features,
-        #                       kernel_size=3,
-        #                       padding=1)
-        # self.max_pool2d = nn.MaxPool2d(kernel_size=3,
-        #                                stride=2,
-        #                                padding=1)
-
-        # # Logit and Value FCs
-        # out_img_size = 64 / self.pooling
-        # out_max_size = int(np.floor(0.5 * (out_img_size - 1)) + 1)
-        # in_features = conv_out_features * out_max_size ** 2
-        # self.hidden_fc = nn.Linear(in_features=in_features,
-        #                            out_features=out_features)
-        # self.logits_fc = nn.Linear(in_features=out_features, 
-        #                            out_features=num_outputs)
-        # self.value_fc = nn.Linear(in_features=out_features, 
-        #                           out_features=1)
-
-        # # Initialize weights of logits_fc
-        # nn.init.orthogonal_(self.logits_fc.weight, gain=0.01)
-        # nn.init.zeros_(self.logits_fc.bias)
-
     def template_match_torch(self, i, d=torch.device('cuda')):
         if self.grad_on:
             dst = self.temp_conv(i)
@@ -421,23 +398,6 @@ class TMPNet(nn.Module):
             filters = self.template_match_torch(x, d) # b x 20 x 64 x 64
 
         return self.impala(filters)
-
-        # # Learn on the pre-computed filters
-        # x = self.conv(filters)
-        # x = torch.relu(x)
-        # x = self.max_pool2d(x)
-
-        # # Convert to vectors
-        # x = torch.flatten(x, start_dim=1)
-        # x = self.hidden_fc(x)
-        # x = torch.relu(x)
-
-        # # Get Distribution and Estimated Value
-        # logits = self.logits_fc(x)
-        # dist = torch.distributions.Categorical(logits=logits)
-        # value = self.value_fc(x)
-
-        # return dist, value
     
     def save_to_file(self, model_path):
         torch.save(self.state_dict(), model_path)
@@ -571,6 +531,7 @@ class TMPNet2(nn.Module):
     def load_from_file(self, model_path):
         self.load_state_dict(torch.load(model_path))
 
+
 class TMPNet3(nn.Module):
 
     def __init__(self, obs_space, num_outputs, target_width=7,
@@ -663,7 +624,7 @@ class TMPNet3(nn.Module):
         x = obs / 255.0  # scale to 0-1
         x = x.permute(0, 3, 1, 2)  # NHWC => NCHW
         filters = self.proc_conv(self.templates_tensor) # 20 x 3 x 3 x 3
-        # filters = torch.tanh(filters) # Transform to [-1, 1]
+        filters = torch.tanh(filters) # Transform to [-1, 1]
         x = F.conv2d(x, filters, padding=1) # b x 20 x 64 x 64
         return self.impala(x)
     
@@ -672,190 +633,4 @@ class TMPNet3(nn.Module):
 
     def load_from_file(self, model_path):
         self.load_state_dict(torch.load(model_path))
-
-class ImpalaCNN_TMP(nn.Module):
-    """Network from IMPALA paper, to work with pfrl."""
-
-    def __init__(self, obs_space, num_outputs):
-
-        super(ImpalaCNN, self).__init__()
-
-        h, w, c = obs_space.shape
-        shape = (c, h, w)
-
-        conv_seqs = []
-        for out_channels in [16, 32, 32]:
-            conv_seq = ConvSequence(shape, out_channels)
-            shape = conv_seq.get_output_shape()
-            conv_seqs.append(conv_seq)
-        self.conv_seqs = nn.ModuleList(conv_seqs)
-        self.hidden_fc = nn.Linear(in_features=shape[0] * shape[1] * shape[2],
-                                   out_features=256)
-        self.logits_fc = nn.Linear(in_features=256, out_features=num_outputs)
-        self.value_fc = nn.Linear(in_features=256, out_features=1)
-        # Initialize weights of logits_fc
-        nn.init.orthogonal_(self.logits_fc.weight, gain=0.01)
-        nn.init.zeros_(self.logits_fc.bias)
-
-    def template_match(obs, templates):
-        """template match against RGB window, observation of shape (nxmx3)"""
-
-        rgb = obs
-        bgr = obs
-        # bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR) #convert rgb to bgr
-        # print(bgr.dtype)
-
-        names = []
-        filter_out = np.zeros((
-            len(list(templates.keys())), bgr.shape[0], bgr.shape[1]))
-
-        idx = 0
-        for k, v in templates.items():
-            names.append(k)
-            kernel = v['img']
-            dst = np.zeros((bgr.shape[0], bgr.shape[1]))
-            for i in range(3):
-                a = cv2.filter2D(bgr[:,:,i], -1, kernel[:,:,i])
-                dst += a
-            filter_out[idx] = dst
-            idx += 1
-
-        filter_out_orig = filter_out
-        filter_out = filter_out.transpose((1, 2, 0))
-        filter_out_max = np.max(filter_out, axis=-1)
-        filter_out_amax = np.argmax(filter_out, axis=-1)
-            
-        return filter_out_orig, filter_out_amax, names
-
-    def forward(self, obs):
-        assert obs.ndim == 4,  f'Invalid Shape: {obs.shape}'
-        x = obs / 255.0  # scale to 0-1
-        x = x.permute(0, 3, 1, 2)  # NHWC => NCHW
-        for conv_seq in self.conv_seqs:
-            x = conv_seq(x)
-        x = torch.flatten(x, start_dim=1)
-        x = torch.relu(x)
-        x = self.hidden_fc(x)
-        x = torch.relu(x)
-        logits = self.logits_fc(x)
-        dist = torch.distributions.Categorical(logits=logits)
-        value = self.value_fc(x)
-        return dist, value
-
-    def save_to_file(self, model_path):
-        torch.save(self.state_dict(), model_path)
-
-    def load_from_file(self, model_path):
-        self.load_state_dict(torch.load(model_path))
-
-class MultiBatchImpalaCNN(nn.Module):
-    """Network from IMPALA paper, to work with pfrl. MultiBatch variant"""
-
-    def __init__(self, obs_space, num_outputs):
-
-        super(MultiBatchImpalaCNN, self).__init__()
-
-        h, w, c = obs_space.shape
-        shape = (c, h, w)
-
-        conv_seqs = []
-        for out_channels in [16, 32, 32]:
-            conv_seq = ConvSequence(shape, out_channels)
-            shape = conv_seq.get_output_shape()
-            conv_seqs.append(conv_seq)
-        self.conv_seqs = nn.ModuleList(conv_seqs)
-        self.hidden_fc = nn.Linear(in_features=shape[0] * shape[1] * shape[2],
-                                   out_features=256)
-        self.logits_fc = nn.Linear(in_features=256, out_features=num_outputs)
-        self.value_fc = nn.Linear(in_features=256, out_features=1)
-        # Initialize weights of logits_fc
-        nn.init.orthogonal_(self.logits_fc.weight, gain=0.01)
-        nn.init.zeros_(self.logits_fc.bias)
-
-    def forward(self, obss):
-        # assert obs.ndim == 4,  f'Invalid Shape: {obs.shape}'
-
-        logits = []
-        values = []
-        for i in range(len(obss)):
-            obs = obss[i]
-            x = obs / 255.0  # scale to 0-1
-            x = x.permute(0, 3, 1, 2)  # NHWC => NCHW
-            for conv_seq in self.conv_seqs:
-                x = conv_seq(x)
-            x = torch.flatten(x, start_dim=1)
-            x = torch.relu(x)
-            x = self.hidden_fc(x)
-            x = torch.relu(x)
-            logits_i = self.logits_fc(x)
-            logits.append(logits_i)
-            values.append(self.value_fc(x))
-        
-        values = torch.stack(values)
-        logits = torch.stack(logits)
-        dist = torch.distributions.Categorical(logits=logits)
-        # value = self.value_fc(x)
-        return dist, values
-
-    def save_to_file(self, model_path):
-        torch.save(self.state_dict(), model_path)
-
-    def load_from_file(self, model_path):
-        self.load_state_dict(torch.load(model_path))
-
-# from vit_pytorch.vit import ViT
-        
-# class VIT_Wrapper(nn.Module):
-#     def __init__(self, obs_space, num_outputs, 
-#                  patch_size=4, dim=128, depth=3, heads=4,
-#                  dropout=0.1, pool='cls'):
-
-#         super(VIT_Wrapper, self).__init__()
-
-#         h, w, c = obs_space.shape
-#         shape = (c, h, w)
-        
-#         # Fruitbot: 64x64
-#         # Ablation:
-#         # - Patch-Size = {4, 8, 16}
-#         # - Dim = {256, 512, 1024, 2048} Constant
-#         # - depth = {1, 2, 3, 4, 5, 6}
-#         # - heads = {4, 8, 16, 32} Constant
-#         # - dropout = {0.1, 0.2, 0.3, 0.4} Constant
-#         # - pool = {'cls', 'mean'} Constant
-        
-#         self.vit = ViT(
-#             image_size = h,
-#             patch_size = patch_size,
-#             num_classes = num_outputs,
-#             dim = dim,
-#             heads = heads,
-#             depth = depth,
-#             mlp_dim = 2 * dim,
-#             dropout = dropout,
-#             emb_dropout = dropout,
-#             pool = pool
-#         )
-        
-#         self.value_fc = nn.Linear(
-#             in_features=dim, out_features=1)
-        
-#     def forward(self, obs):
-#         assert obs.ndim == 4,  f'Invalid Shape: {obs.shape}'
-#         x = obs / 255.0  # scale to 0-1
-#         x = x.permute(0, 3, 1, 2)  # NHWC => NCHW
-#         x, logits = self.vit(x)
-        
-#         dist = torch.distributions.Categorical(logits=logits)
-#         value = self.value_fc(torch.relu(x))
-
-#         # print("ppo_value:", value.shape)
-
-#         return dist, value
-
-#     def save_to_file(self, model_path):
-#         torch.save(self.state_dict(), model_path)
-
-#     def load_from_file(self, model_path):
-#         self.load_state_dict(torch.load(model_path))
         
