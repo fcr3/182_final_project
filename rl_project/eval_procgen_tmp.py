@@ -151,7 +151,7 @@ def eval_model(config, agent, eval_env, model_dir):
             next_steps[done] = 0
 
             eval_eprewards += reward
-            reset_cnt += np.sum(next_steps == 0)
+            reset_cnt += np.count_nonzero(next_steps == 0)
             total_rewards += np.sum(eval_eprewards[next_steps == 0])
 
             finished_rewards = eval_eprewards[next_steps == 0]
