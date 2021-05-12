@@ -3,7 +3,10 @@ gym
 procgen
 torch
 torchvision
+jupyterlab
 matplotlib
 tqdm
 pandas
 tensorflow
+tensorboard
+pfrl
