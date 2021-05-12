@@ -84,3 +84,6 @@ The `notebooks` folder within `rl_project` contains notebooks that we used to ru
 ## Logs
 
 The `logs` folder contains a large number of train and eval logs from our experiments with template initialization. Each directory contains a tfevents file as well as a traditional log, `progress.csv`. One of the test runs from `ortho_template_init_eval` has been moved to the outermost directory and renamed `best_test_log.csv`. The format of the eval logs are rows containing the reward at the end of one episode on an unseen test level. This is submission variant number two. There are also logs showing the testing curve during training inside the training logs, but the logged values are not precisely average episodic reward on unseen test levels. The graphs within our writeup contain these `eval` curves during training, but they range up to a value of 25, while the average episodic reward actually only ranges up to a value of 15. The key for the `eval` curves during training in the training `process.csv`'s is `eval_eprewmean`.
+
+## Credits
+We built our codebase based on this repository: https://github.com/lerrytang/train-procgen-pfrl.
